@@ -2,12 +2,120 @@
 #include <limits.h>  // Для INT_MAX или INT_MIN
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <climits>
 
+typedef struct trie_node {
+  char* symb;
+  char isStop;
+  trie_node** list_siblings;
+} trie_node;
+
+typedef struct trie {
+  trie_node* root;
+  char* alphabet;
+  size_t alphabet_size;
+} trie;
+
+void trie_init(trie* tri) {
+  tri->root = NULL;
+  tri->alphabet = strdup("abcdefghijklmnopqrstuvwxyz");
+  tri->alphabet_size = strlen(tri->alphabet);
+}
+
+void trie_insert(trie* tri, char* word) {
+  char* ALPHABET = tri->alphabet;
+  if (tri->root == NULL) {
+    trie_node* nn = (trie_node*)malloc(sizeof(trie_node));
+    nn->isStop = 0;
+    nn->list_siblings =
+        (trie_node**)malloc(sizeof(trie_node*) * tri->alphabet_size);
+    for (size_t i = 0; i < tri->alphabet_size; i++) {
+      nn->list_siblings[i] = (trie_node*)malloc(sizeof(trie_node));
+      nn->list_siblings[i]->isStop = 0;
+      nn->list_siblings[i]->symb = (ALPHABET + i);
+    }
+    nn->symb = NULL;
+    tri->root = nn;
+  }
+  trie_node* cur = tri->root;
+  if (cur == NULL) return;
+  while (*word != '\0') {
+    if (cur->list_siblings == NULL) {
+      cur->list_siblings =
+          (trie_node**)malloc(sizeof(trie_node*) * tri->alphabet_size);
+      for (size_t i = 0; i < tri->alphabet_size; i++) {
+        cur->list_siblings[i] = (trie_node*)malloc(sizeof(trie_node));
+        cur->list_siblings[i]->isStop = 0;
+        cur->list_siblings[i]->symb = (ALPHABET + i);
+      }
+    }
+    cur = cur->list_siblings[*word - 'a'];
+    word++;
+  }
+  cur->isStop = 1;
+  return;
+}
+
+char trie_search(trie* tri, char* word) {
+  if (tri->root == NULL) return 0;
+  trie_node* cur = tri->root;
+  size_t len = strlen(word);
+  for (size_t j = 0; j < len; j++) {
+    int now_char = *word - 'a';
+    if (cur == NULL || cur->list_siblings == NULL) {
+      return 0;
+    }
+    cur = cur->list_siblings[*word - 'a'];
+    word++;
+  }
+  if (cur->isStop == 1) {
+    return 1;
+  }
+  return 0;
+}
+
+void trie_remove_word(trie* tri, char* word) {
+  if (tri->root == NULL) return;
+  trie_node* cur = tri->root;
+  for (size_t j = 0; j < strlen(word); j++) {
+    int now_char = *word - 'a';
+    if (cur == NULL || cur->list_siblings == NULL) {
+      return;
+    }
+    cur = cur->list_siblings[*word - 'a'];
+    word++;
+  }
+  if (cur->isStop == 1) {
+    cur->isStop == 0;
+    return;
+  }
+  return;
+}
+
+void trie_node_destroy(trie_node* node, size_t cnt) {
+  if (node == NULL) return;
+  for (size_t i = 0; i < cnt; i++) {
+    if (node->list_siblings != NULL)
+      trie_node_destroy(node->list_siblings[i], cnt);
+  }
+  node->isStop = 0;
+  node->symb = NULL;
+  free(node->list_siblings);
+  node->list_siblings = NULL;
+  free(node);
+}
+
+void trie_destroy(trie* tr) {
+  trie_node_destroy(tr->root, strlen(tr->alphabet));
+  free(tr->alphabet);
+  tr->alphabet_size = 0;
+}
+
 typedef struct node {
-  int key;
-  int val;
+  int key;  // ключ
+  int val;  // значение
   node* l;
   node* r;
 } node;
@@ -16,6 +124,172 @@ typedef struct tree {
   node* root;
   // cmp
 } tree;
+
+typedef struct treap {
+  node* root;
+} treap;
+
+typedef struct skewheap {
+  node* root;
+} skewheap;
+
+typedef struct leftist {
+  node* root;
+} leftist;
+
+void leftist_init(leftist* heap) { heap->root = NULL; }
+
+void skewheap_init(skewheap* heap) { heap->root = NULL; }
+
+void treap_init(treap* heap) { heap->root = NULL; }
+
+void swap(node** a, node** b) {
+  node* tmp = *a;
+  *a = *b;
+  *b = tmp;
+}
+
+node* treap_merge(node* a, node* b) {
+  if (a == NULL) return b;
+  if (b == NULL) return a;
+
+  if (a->key > b->key) {
+    // приоритетная b
+    a->r = treap_merge(a->r, b);
+    return a;
+  } else {
+    // приуритет у a
+    b->l = treap_merge(a, b->l);
+    return b;
+  }
+
+  // return a;
+}
+
+int treap_top(treap* heap) {
+  if (heap == NULL || heap->root == NULL) return INT_MAX;
+  return heap->root->key;
+}
+
+typedef struct node_pair {
+  node* first;
+  node* second;
+} node_pair;
+
+node_pair split(node* p, int x) {
+  if (p == NULL) return {0, 0};
+  if (p->key <= x) {
+    node_pair res = split(p->l, x);
+    p->r = res.first;
+    return {p, res.second};
+  } else {
+    node_pair res = split(p->l, x);
+    p->l = res.second;
+    return {res.first, p};
+  }
+}
+
+void treap_insert(treap* heap, int meow, int woof) {
+  node* mm = (node*)malloc(sizeof(node));
+  mm->key = meow;
+  mm->val = woof;
+  mm->l = mm->r = NULL;
+  node_pair tmp = split(heap->root, meow);
+  heap->root = treap_merge(tmp.first, treap_merge(mm, tmp.second));
+}
+
+int skewheap_top(skewheap* heap) {
+  if (heap == NULL || heap->root == NULL) return INT_MAX;
+  return heap->root->key;
+}
+
+int leftist_top(leftist* heap) {
+  if (heap == NULL || heap->root == NULL) return INT_MAX;
+  return heap->root->key;
+}
+
+int NPL(node* nod) {
+  if (nod == NULL) return -1;
+  if (nod->l == NULL && nod->r == NULL) {
+    return 0;
+  }
+  if (nod->l != NULL && nod->r == NULL) {
+    return 1 + NPL(nod->l);
+  }
+  int lNPL = NPL(nod->l);
+  int rNPL = NPL(nod->r);
+  return 1 + (lNPL > rNPL ? rNPL : lNPL);
+}
+
+node* leftist_merge(node* a, node* b) {
+  if (a == NULL) return b;
+  if (b == NULL) return a;
+
+  if (a->key > b->key) {
+    // приоритетная b
+    swap(&a, &b);
+  } else {
+    // приуритет у a
+  }
+  a->r = leftist_merge(a->r, b);
+  if (NPL(a->r) > NPL(a->l)) swap(&a->l, &a->r);
+  return a;
+}
+
+node* skewheap_merge(node* a, node* b) {
+  if (a == NULL) return b;
+  if (b == NULL) return a;
+
+  if (a->key > b->key) {
+    // приоритетная b
+    swap(&a, &b);
+  } else {
+    // приуритет у a
+  }
+  a->l = skewheap_merge(b, a->l);
+  return a;
+}
+
+void skewheap_insert(skewheap* heap, int meow) {
+  node* mm = (node*)malloc(sizeof(node));
+  mm->key = meow;
+  mm->l = mm->r = NULL;
+  heap->root = skewheap_merge(heap->root, mm);
+}
+
+void leftist_insert(leftist* heap, int meow) {
+  node* mm = (node*)malloc(sizeof(node));
+  mm->key = meow;
+  mm->l = mm->r = NULL;
+  heap->root = leftist_merge(heap->root, mm);
+}
+
+void skewheap_pop(skewheap* heap) {
+  node* tmp = heap->root;
+  node* neww = skewheap_merge(heap->root->l, heap->root->r);
+  free(tmp);
+  heap->root = neww;
+}
+
+void treap_pop(treap* heap) {
+  node* tmp = heap->root;
+  node* neww = treap_merge(heap->root->l, heap->root->r);
+  free(tmp);
+  heap->root = neww;
+}
+
+void destroy_node(node* nn) {
+  if (nn == NULL) return;
+
+  destroy_node(nn->l);
+  destroy_node(nn->r);
+  free(nn);
+}
+
+void skewheap_tree(skewheap* tr) {
+  if (tr == NULL) return;
+  destroy_node(tr->root);
+}
 
 void tree_init(tree* tree) {
   tree->root = NULL;
@@ -121,13 +395,13 @@ void remove(node** nodee) {
   }
 }
 
-void destroy_node(node* nn) {
-  if (nn == NULL) return;
+// void destroy_node(node* nn) {
+//   if (nn == NULL) return;
 
-  destroy_node(nn->l);
-  destroy_node(nn->r);
-  free(nn);
-}
+//   destroy_node(nn->l);
+//   destroy_node(nn->r);
+//   free(nn);
+// }
 
 void destroy_tree(tree* tr) {
   if (tr == NULL) return;
@@ -609,22 +883,78 @@ int main(int argc, char* argv[]) {
   // int b = queue_pop(&qq);
   // printf("%d %d", a, b);
 
-  tree meow;
-  tree_init(&meow);
-  insearch(&meow, 6);
-  insearch(&meow, 4);
-  insearch(&meow, 9);
-  insearch(&meow, 1);
-  insearch(&meow, 5);
-  insearch(&meow, 8);
-  insearch(&meow, 11);
-  insearch(&meow, 12);
+  // tree meow;
+  // tree_init(&meow);
+  // insearch(&meow, 6);
+  // insearch(&meow, 4);
+  // insearch(&meow, 9);
+  // insearch(&meow, 1);
+  // insearch(&meow, 5);
+  // insearch(&meow, 8);
+  // insearch(&meow, 11);
+  // insearch(&meow, 12);
 
-  node* ch = insearch(&meow, 4);
+  // node* ch = insearch(&meow, 4);
 
-  remove(&ch);
+  // remove(&ch);
 
-  print_tree(&meow);
+  // print_tree(&meow);
+
+  // skewheap hh;
+  // skewheap_init(&hh);
+
+  // skewheap_insert(&hh, 9);
+  // skewheap_insert(&hh, 99);
+  // skewheap_insert(&hh, 5);
+  // skewheap_insert(&hh, 3);
+
+  // skewheap hh2;
+  // skewheap_init(&hh2);
+
+  // skewheap_insert(&hh2, 8);
+  // skewheap_insert(&hh2, 75);
+  // skewheap_insert(&hh2, 52);
+  // skewheap_insert(&hh2, 2);
+
+  // node* mm = skewheap_merge(hh.root, hh2.root);
+
+  // int tt = mm->key;
+
+  // leftist qw;
+  // leftist_init(&qw);
+  // leftist_insert(&qw, 8);
+  // leftist_insert(&qw, 75);
+  // leftist_insert(&qw, 52);
+  // leftist_insert(&qw, 2);
+
+  // printf("Top = %d\n", leftist_top(&qw));
+
+  // treap tt;
+  // treap_init(&tt);
+
+  // treap_insert(&tt, 14, 1);
+  // treap_insert(&tt, 31, 2);
+  // treap_insert(&tt, 25, 4);
+  // treap_insert(&tt, 54, 6);
+
+  // printf("val=%d key=%d\n", tt.root->val, tt.root->key);
+  // treap_pop(&tt);
+  // printf("val=%d key=%d\n", tt.root->val, tt.root->key);
+
+  trie tr;
+  trie_init(&tr);
+  
+  trie_insert(&tr, "meow\0");
+  trie_insert(&tr, "woof\0");
+  trie_insert(&tr, "puksrenjk\0");
+  trie_insert(&tr, "moon\0");
+  trie_insert(&tr, "m\0");
+
+  printf("%d\n", trie_search(&tr, "moon\0"));
+  printf("%d\n", trie_search(&tr, "moonk\0"));
+  printf("%d\n", trie_search(&tr, "m\0"));
+
+  trie_destroy(&tr);
 
   return EXIT_SUCCESS;
 }

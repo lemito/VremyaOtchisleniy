@@ -118,6 +118,7 @@ typedef struct node {
   int val;  // значение
   node* l;
   node* r;
+  int Npl;
 } node;
 
 typedef struct tree {
@@ -208,18 +209,18 @@ int leftist_top(leftist* heap) {
   return heap->root->key;
 }
 
-int NPL(node* nod) {
-  if (nod == NULL) return -1;
-  if (nod->l == NULL && nod->r == NULL) {
-    return 0;
-  }
-  if (nod->l != NULL && nod->r == NULL) {
-    return 1 + NPL(nod->l);
-  }
-  int lNPL = NPL(nod->l);
-  int rNPL = NPL(nod->r);
-  return 1 + (lNPL > rNPL ? rNPL : lNPL);
-}
+// int NPL(node* nod) {
+//   if (nod == NULL) return -1;
+//   if (nod->l == NULL && nod->r == NULL) {
+//     return 0;
+//   }
+//   if (nod->l != NULL && nod->r == NULL) {
+//     return 1 + NPL(nod->l);
+//   }
+//   int lNPL = NPL(nod->l);
+//   int rNPL = NPL(nod->r);
+//   return 1 + (lNPL > rNPL ? rNPL : lNPL);
+// }
 
 node* leftist_merge(node* a, node* b) {
   if (a == NULL) return b;
@@ -232,7 +233,13 @@ node* leftist_merge(node* a, node* b) {
     // приуритет у a
   }
   a->r = leftist_merge(a->r, b);
-  if (NPL(a->r) > NPL(a->l)) swap(&a->l, &a->r);
+  if (a->l == NULL) {
+    swap(&a->l, &a->r);
+    a->Npl = 0;
+    return a;
+  }
+  if (a->r->Npl > a->l->Npl) swap(&a->l, &a->r);
+  a->Npl = a->r->Npl + 1;
   return a;
 }
 
@@ -261,12 +268,20 @@ void leftist_insert(leftist* heap, int meow) {
   node* mm = (node*)malloc(sizeof(node));
   mm->key = meow;
   mm->l = mm->r = NULL;
+  mm->Npl = 0;
   heap->root = leftist_merge(heap->root, mm);
 }
 
 void skewheap_pop(skewheap* heap) {
   node* tmp = heap->root;
   node* neww = skewheap_merge(heap->root->l, heap->root->r);
+  free(tmp);
+  heap->root = neww;
+}
+
+void leftist_pop(leftist* heap) {
+  node* tmp = heap->root;
+  node* neww = leftist_merge(heap->root->l, heap->root->r);
   free(tmp);
   heap->root = neww;
 }
@@ -920,14 +935,18 @@ int main(int argc, char* argv[]) {
 
   // int tt = mm->key;
 
-  // leftist qw;
-  // leftist_init(&qw);
-  // leftist_insert(&qw, 8);
-  // leftist_insert(&qw, 75);
-  // leftist_insert(&qw, 52);
-  // leftist_insert(&qw, 2);
+  leftist qw;
+  leftist_init(&qw);
+  leftist_insert(&qw, 8);
+  leftist_insert(&qw, 75);
+  leftist_insert(&qw, 52);
+  leftist_insert(&qw, 2);
 
-  // printf("Top = %d\n", leftist_top(&qw));
+  printf("Top = %d\n", leftist_top(&qw));
+
+  leftist_pop(&qw);
+
+  printf("Top = %d\n", leftist_top(&qw));
 
   // treap tt;
   // treap_init(&tt);
@@ -943,7 +962,7 @@ int main(int argc, char* argv[]) {
 
   trie tr;
   trie_init(&tr);
-  
+
   trie_insert(&tr, "meow\0");
   trie_insert(&tr, "woof\0");
   trie_insert(&tr, "puksrenjk\0");
